@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hermes — Device Monitor</title>
+  <style>
+    body  { font-family: sans-serif; background: #111; color: #eee; padding: 2rem; }
+    h1    { color: #4fc3f7; margin-bottom: 1.5rem; }
+    .card { background: #1e1e1e; border-radius: 8px; padding: 1rem 1.5rem; margin: 0.5rem 0; }
+    .label { color: #888; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .value { font-size: 1.4rem; font-weight: bold; margin-top: 0.2rem; }
+    .note  { color: #555; font-size: 0.8rem; margin-top: 2rem; }
+  </style>
+</head>
+<body>
+  <h1>Hermes Device Monitor</h1>
+
+  <div class="card">
+    <div class="label">CPU Temperature</div>
+    <div class="value" id="cpu-temp">--</div>
+  </div>
+
+  <div class="card">
+    <div class="label">Memory Used</div>
+    <div class="value" id="memory">--</div>
+  </div>
+
+  <div class="card">
+    <div class="label">Disk Used</div>
+    <div class="value" id="disk">--</div>
+  </div>
+
+  <div class="card">
+    <div class="label">Uptime</div>
+    <div class="value" id="uptime">--</div>
+  </div>
+
+  <div class="card">
+    <div class="label">Load Average (1m)</div>
+    <div class="value" id="load">--</div>
+  </div>
+
+  <p class="note">Data not yet connected — coming in Step 6</p>
+</body>
+</html>

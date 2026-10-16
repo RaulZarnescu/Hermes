@@ -6,6 +6,8 @@ CMakeCache.txt      # contains passwords set via cmake -DMQTT_PASS=...
 CMakeFiles/
 *.o
 *.a
+http_server
+http_direct/http_server
 
 # Paho MQTT C library — cloned and built by setup-device.sh, not committed
 paho.mqtt.c/
