@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+message Telemetry {
+    // Device identification
+    string device_id = 1;
+
+    // CPU
+    int32 cpu_temperature = 2;
+    int32 cpu_core1       = 3;
+    int32 cpu_core2       = 4;
+    int32 cpu_core3       = 5;
+    int32 cpu_core4       = 6;
+
+    // Memory (MB)
+    int32 used_memory  = 7;
+    int32 total_memory = 8;
+
+    // System
+    int64 uptime_seconds = 9;
+
+    // Disk (GB)
+    int32 disk_used_gb  = 10;
+    int32 disk_total_gb = 11;
+
+    // Load
+    float load_avg_1m = 12;
+}

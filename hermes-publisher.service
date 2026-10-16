@@ -1,0 +1,34 @@
+[Unit]
+Description=Hermes MQTT Telemetry Publisher
+# Wait for the network to be fully up before starting
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=raul
+
+# Where the binary lives
+WorkingDirectory=/home/raul/CLionProjects/Hermes/build
+
+# The Paho .so files are not installed system-wide, so we point to them here
+Environment="LD_LIBRARY_PATH=/home/raul/CLionProjects/Hermes/paho.mqtt.c/build/output"
+
+# Update --pass to match your Mosquitto password
+ExecStart=/home/raul/CLionProjects/Hermes/build/hermes_app \
+    --user hermes \
+    --pass Peroroncino \
+    --interval 3
+
+# If the publisher crashes (network blip, broker restart, etc.),
+# systemd will restart it automatically after 5 seconds
+Restart=on-failure
+RestartSec=5s
+
+# Write stdout/stderr to the system journal (view with: journalctl -u hermes-publisher -f)
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+# Start this service when the system reaches the normal multi-user runlevel
+WantedBy=multi-user.target

@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hermes Telemetry Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:       #0d1117;
+            --surface:  #161b22;
+            --border:   #30363d;
+            --accent:   #7c3aed;
+            --teal:     #06b6d4;
+            --green:    #22c55e;
+            --amber:    #f59e0b;
+            --red:      #ef4444;
+            --text:     #e6edf3;
+            --muted:    #8b949e;
+            --sidebar-w: 220px;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ── Sidebar ─────────────────────────────────────────── */
+        #sidebar {
+            width: var(--sidebar-w);
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+        #sidebar h2 {
+            padding: 18px 16px 14px;
+            font-size: 1rem;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+            color: var(--muted);
+            border-bottom: 1px solid var(--border);
+        }
+        #device-list { flex: 1; overflow-y: auto; padding: 8px; }
+        .device-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background .15s;
+        }
+        .device-item:hover, .device-item.active { background: rgba(124,58,237,.15); }
+        .dot {
+            width: 9px; height: 9px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: var(--muted);
+        }
+        .dot.online  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+        .dot.offline { background: var(--red); }
+        .device-name  { font-size: .9rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .device-since { font-size: .7rem; color: var(--muted); margin-top: 2px; }
+
+        /* ── Main content ────────────────────────────────────── */
+        #main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #topbar {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--surface);
+        }
+        #topbar h1 { font-size: 1.2rem; }
+        #topbar span { font-size: .85rem; color: var(--muted); }
+
+        #content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: auto auto auto;
+            gap: 16px;
+            align-content: start;
+        }
+
+        /* ── Metric cards ────────────────────────────────────── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px;
+            transition: border-color .3s;
+        }
+        .card.warn  { border-color: var(--amber); }
+        .card.crit  { border-color: var(--red);   }
+        .card h4    { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 10px; }
+        .card .val  { font-size: 2.2rem; font-weight: 700; line-height: 1; }
+        .card .unit { font-size: .85rem; color: var(--muted); margin-left: 2px; }
+
+        /* ── Chart cards ─────────────────────────────────────── */
+        .chart-card {
+            grid-column: span 2;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px;
+        }
+        .chart-card h4 { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 14px; }
+        .chart-card canvas { max-height: 160px; }
+
+        /* ── Command panel ───────────────────────────────────── */
+        #cmd-panel {
+            grid-column: span 4;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        #cmd-panel h4 { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); flex-basis: 100%; }
+        .cmd-btn {
+            padding: 8px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: .9rem;
+            font-weight: 600;
+            transition: opacity .15s, transform .1s;
+        }
+        .cmd-btn:hover { opacity: .85; transform: translateY(-1px); }
+        .cmd-btn:active { transform: translateY(0); }
+        .btn-ping     { background: var(--teal);   color: #000; }
+        .btn-interval { background: var(--accent);  color: #fff; }
+        .cmd-input {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+            font-size: .9rem;
+            width: 80px;
+        }
+
+        /* ── No device placeholder ───────────────────────────── */
+        #placeholder {
+            grid-column: span 4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 300px;
+            color: var(--muted);
+            font-size: 1rem;
+            border: 1px dashed var(--border);
+            border-radius: 12px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── Sidebar ─────────────────────────────────────────────────────────────── -->
+<nav id="sidebar">
+    <h2>Hermes</h2>
+    <div id="device-list">
+        <p style="padding:12px;color:var(--muted);font-size:.8rem">Waiting for devices...</p>
+    </div>
+</nav>
+
+<!-- ── Main ───────────────────────────────────────────────────────────────── -->
+<div id="main">
+    <div id="topbar">
+        <h1 id="topbar-title">Select a device</h1>
+        <span id="topbar-uptime"></span>
+    </div>
+    <div id="content">
+        <div id="placeholder">Select a device from the sidebar to view telemetry</div>
+    </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────────
+let selectedDevice = null;
+let devices        = {};    // device_id → { last_seen, last_data }
+let charts         = {};    // 'cpu' | 'mem' → Chart instance
+const MAX_POINTS   = 60;
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function secondsAgo(ts) {
+    const d = Math.floor(Date.now() / 1000 - ts);
+    if (d <  60) return `${d}s ago`;
+    if (d < 3600) return `${Math.floor(d/60)}m ago`;
+    return `${Math.floor(d/3600)}h ago`;
+}
+
+function formatUptime(s) {
+    const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600),
+          m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return `${d}d ${h}h ${m}m ${sec}s`;
+}
+
+function timeLabel(ts) {
+    return new Date(ts * 1000).toLocaleTimeString();
+}
+
+// ── Threshold helpers ──────────────────────────────────────────────────────────
+function tempClass(v)   { return v > 90 ? 'crit' : v > 80 ? 'warn' : ''; }
+function memClass(u, t) { const p = t ? (u/t*100) : 0; return p > 90 ? 'crit' : p > 80 ? 'warn' : ''; }
+function coreClass(v)   { return v > 90 ? 'crit' : v > 75 ? 'warn' : ''; }
+
+// ── Build dashboard HTML ───────────────────────────────────────────────────────
+function buildDashboard() {
+    document.getElementById('content').innerHTML = `
+        <!-- Row 1: scalar metrics -->
+        <div class="card" id="card-temp">
+            <h4>CPU Temp</h4>
+            <span class="val" id="val-temp">--</span><span class="unit">°C</span>
+        </div>
+        <div class="card" id="card-mem">
+            <h4>Memory Used</h4>
+            <span class="val" id="val-mem">--</span><span class="unit">MB</span>
+        </div>
+        <div class="card" id="card-disk">
+            <h4>Disk Used</h4>
+            <span class="val" id="val-disk">--</span><span class="unit">GB</span>
+        </div>
+        <div class="card" id="card-load">
+            <h4>Load Avg (1m)</h4>
+            <span class="val" id="val-load">--</span>
+        </div>
+
+        <!-- Row 2: charts -->
+        <div class="chart-card">
+            <h4>CPU Core Usage (%)</h4>
+            <canvas id="chart-cpu"></canvas>
+        </div>
+        <div class="chart-card">
+            <h4>Memory Usage (MB)</h4>
+            <canvas id="chart-mem"></canvas>
+        </div>
+
+        <!-- Row 3: individual core cards -->
+        <div class="card" id="card-c1"><h4>Core 1</h4><span class="val" id="val-c1">--</span><span class="unit">%</span></div>
+        <div class="card" id="card-c2"><h4>Core 2</h4><span class="val" id="val-c2">--</span><span class="unit">%</span></div>
+        <div class="card" id="card-c3"><h4>Core 3</h4><span class="val" id="val-c3">--</span><span class="unit">%</span></div>
+        <div class="card" id="card-c4"><h4>Core 4</h4><span class="val" id="val-c4">--</span><span class="unit">%</span></div>
+
+        <!-- Row 4: command panel -->
+        <div id="cmd-panel">
+            <h4>Remote Commands</h4>
+            <button class="cmd-btn btn-ping" onclick="sendCommand('PING')">⚡ PING</button>
+            <input  class="cmd-input" id="interval-val" type="number" min="1" max="3600" value="3" />
+            <button class="cmd-btn btn-interval" onclick="sendInterval()">⏱ Set Interval</button>
+        </div>
+    `;
+
+    // Destroy old charts before creating new ones to avoid canvas reuse errors
+    Object.values(charts).forEach(c => c.destroy());
+    charts = {};
+
+    const chartDefaults = {
+        animation: false,
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: { legend: { labels: { color: '#8b949e', boxWidth: 12, font: { size: 11 } } } },
+        scales: {
+            x: { ticks: { color: '#8b949e', maxTicksLimit: 6, font: { size: 10 } }, grid: { color: '#21262d' } },
+            y: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#21262d' } }
+        }
+    };
+
+    charts.cpu = new Chart(document.getElementById('chart-cpu'), {
+        type: 'line',
+        data: { labels: [], datasets: [
+            { label: 'Core 1', data: [], borderColor: '#7c3aed', tension: .3, pointRadius: 0, borderWidth: 2 },
+            { label: 'Core 2', data: [], borderColor: '#06b6d4', tension: .3, pointRadius: 0, borderWidth: 2 },
+            { label: 'Core 3', data: [], borderColor: '#22c55e', tension: .3, pointRadius: 0, borderWidth: 2 },
+            { label: 'Core 4', data: [], borderColor: '#f59e0b', tension: .3, pointRadius: 0, borderWidth: 2 },
+        ]},
+        options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, min: 0, max: 100 } } }
+    });
+
+    charts.mem = new Chart(document.getElementById('chart-mem'), {
+        type: 'line',
+        data: { labels: [], datasets: [
+            { label: 'Used',  data: [], borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,.1)', fill: true, tension: .3, pointRadius: 0, borderWidth: 2 },
+            { label: 'Total', data: [], borderColor: '#30363d', borderDash: [5,5], tension: .3, pointRadius: 0, borderWidth: 1 },
+        ]},
+        options: chartDefaults
+    });
+}
+
+// ── Update dashboard with a data point ─────────────────────────────────────────
+function updateDashboard(d) {
+    // Topbar
+    document.getElementById('topbar-uptime').textContent = `Uptime: ${formatUptime(d.uptime_seconds)}`;
+
+    // Scalar cards (with threshold colouring)
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    set('val-temp', d.cpu_temperature);
+    set('val-mem',  d.used_memory);
+    set('val-disk', `${d.disk_used_gb} / ${d.disk_total_gb}`);
+    set('val-load', d.load_avg_1m.toFixed(2));
+    set('val-c1', d.cpu_core1); set('val-c2', d.cpu_core2);
+    set('val-c3', d.cpu_core3); set('val-c4', d.cpu_core4);
+
+    const setClass = (id, cls) => { const el = document.getElementById(id); if (el) el.className = 'card ' + cls; };
+    setClass('card-temp', tempClass(d.cpu_temperature));
+    setClass('card-mem',  memClass(d.used_memory, d.total_memory));
+    setClass('card-c1',   coreClass(d.cpu_core1));
+    setClass('card-c2',   coreClass(d.cpu_core2));
+    setClass('card-c3',   coreClass(d.cpu_core3));
+    setClass('card-c4',   coreClass(d.cpu_core4));
+
+    if (!charts.cpu) return;
+    const label = timeLabel(d.timestamp);
+
+    const pushData = (chart, dsIndex, label, value) => {
+        const ds = chart.data.datasets[dsIndex];
+        chart.data.labels.push(label);
+        ds.data.push(value);
+        if (ds.data.length > MAX_POINTS) {
+            chart.data.labels.shift();
+            ds.data.shift();
+        }
+    };
+
+    // CPU chart — 4 datasets
+    ['cpu_core1','cpu_core2','cpu_core3','cpu_core4'].forEach((k, i) => {
+        pushData(charts.cpu, i, label, d[k]);
+    });
+    // Sync all labels from first dataset
+    charts.cpu.data.labels = charts.cpu.data.datasets[0].data.map((_, i) =>
+        charts.cpu.data.labels[charts.cpu.data.labels.length - charts.cpu.data.datasets[0].data.length + i] || ''
+    );
+    charts.cpu.update('none');
+
+    // Memory chart — used + total
+    pushData(charts.mem, 0, label, d.used_memory);
+    pushData(charts.mem, 1, label, d.total_memory);
+    charts.mem.data.labels = charts.mem.data.datasets[0].data.map((_, i) =>
+        charts.mem.data.labels[charts.mem.data.labels.length - charts.mem.data.datasets[0].data.length + i] || ''
+    );
+    charts.mem.update('none');
+}
+
+// ── Pre-fill charts with history ───────────────────────────────────────────────
+async function loadHistory(deviceId) {
+    const res  = await fetch(`/api/history/${encodeURIComponent(deviceId)}`);
+    const rows = await res.json();
+    rows.forEach(d => updateDashboard(d));
+}
+
+// ── Device sidebar ─────────────────────────────────────────────────────────────
+function renderSidebar() {
+    const list = document.getElementById('device-list');
+    list.innerHTML = '';
+    const now = Date.now() / 1000;
+    Object.entries(devices).forEach(([id, info]) => {
+        const online  = (now - info.last_seen) < 30;
+        const item    = document.createElement('div');
+        item.className = 'device-item' + (id === selectedDevice ? ' active' : '');
+        item.innerHTML = `
+            <div class="dot ${online ? 'online' : 'offline'}"></div>
+            <div>
+                <div class="device-name">${id}</div>
+                <div class="device-since">${secondsAgo(info.last_seen)}</div>
+            </div>`;
+        item.onclick = () => selectDevice(id);
+        list.appendChild(item);
+    });
+}
+
+async function selectDevice(id) {
+    selectedDevice = id;
+    document.getElementById('topbar-title').textContent = id;
+    buildDashboard();
+    renderSidebar();
+    await loadHistory(id);
+}
+
+// Update "last seen" labels every 5 seconds even with no new messages
+setInterval(renderSidebar, 5000);
+
+// ── Commands ───────────────────────────────────────────────────────────────────
+async function sendCommand(command) {
+    if (!selectedDevice) return alert('No device selected.');
+    await fetch(`/api/command/${encodeURIComponent(selectedDevice)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command })
+    });
+}
+
+function sendInterval() {
+    const val = document.getElementById('interval-val').value;
+    sendCommand(`SET_INTERVAL ${val}`);
+}
+
+// ── WebSocket (live updates) ───────────────────────────────────────────────────
+const ws = new WebSocket(`ws://${window.location.host}/ws`);
+
+ws.onmessage = function(event) {
+    const d = JSON.parse(event.data);
+    devices[d.device_id] = { last_seen: d.timestamp, last_data: d };
+    renderSidebar();
+    if (d.device_id === selectedDevice) updateDashboard(d);
+};
+
+// ── Boot: fetch existing devices from DB ───────────────────────────────────────
+(async () => {
+    const res  = await fetch('/api/devices');
+    const list = await res.json();
+    list.forEach(row => {
+        devices[row.device_id] = { last_seen: row.last_seen, last_data: null };
+    });
+    renderSidebar();
+    // Auto-select the most recent device
+    if (list.length > 0) selectDevice(list[0].device_id);
+})();
+</script>
+</body>
+</html>

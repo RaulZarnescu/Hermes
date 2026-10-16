@@ -1,0 +1,30 @@
+# Build output
+build/
+cmake-build-debug/
+cmake-build-release/
+CMakeCache.txt      # contains passwords set via cmake -DMQTT_PASS=...
+CMakeFiles/
+*.o
+*.a
+
+# Paho MQTT C library — cloned and built by setup-device.sh, not committed
+paho.mqtt.c/
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
+# Database — runtime data, not source
+*.db
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
